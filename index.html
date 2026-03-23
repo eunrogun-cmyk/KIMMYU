@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kimmyu Air Combat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    #game-root{
+      width:100%;max-width:420px;height:100vh;max-height:700px;
+      font-family:'Orbitron',monospace;background:#000;
+      position:relative;overflow:hidden;
+      border-radius:12px;border:1px solid #1a3a5c;
+    }
+    canvas{display:block;width:100%;touch-action:none}
+    .screen{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      background:rgba(0,0,8,0.97);color:#fff;padding:20px;gap:12px;z-index:10;
+    }
+    .screen.hidden{display:none}
+    .input-wrap{width:100%;max-width:280px}
+    .input-wrap label{font-size:10px;color:#7ab;letter-spacing:1px;display:block;margin-bottom:6px}
+    .input-wrap input{
+      width:100%;background:#0a1a2a;border:1px solid #1a4a7a;
+      color:#00d4ff;padding:10px 14px;
+      font-family:'Orbitron',monospace;font-size:14px;
+      border-radius:6px;outline:none;
+    }
+    .input-wrap input:focus{border-color:#00d4ff;box-shadow:0 0 8px #00d4ff44}
+    .btn{
+      background:linear-gradient(135deg,#003a6a,#0066aa);
+      border:1px solid #00aaff;color:#00d4ff;
+      padding:12px 28px;font-family:'Orbitron',monospace;
+      font-size:12px;cursor:pointer;border-radius:6px;
+      letter-spacing:2px;transition:all .2s;
+      width:100%;max-width:280px;
+    }
+    .btn:hover{background:linear-gradient(135deg,#0050a0,#0088cc);box-shadow:0 0 16px #00aaff66}
+
+    /* 로그인 화면 캔버스 */
+    #login-canvas{display:block;width:100%;max-width:280px;height:160px;margin-bottom:0px}
+
+    /* HUD */
+    #hud{
+      position:absolute;top:0;left:0;right:0;z-index:5;
+      background:rgba(0,0,20,0.88);
+      border-bottom:1px solid #0a2a4a;
+      padding:6px 10px 4px;
+      display:flex;flex-direction:column;gap:3px;
+    }
+    #hud-row1{display:flex;justify-content:space-between;align-items:center}
+    #hud-row2{display:flex;justify-content:space-between;align-items:center}
+    .hud-label{font-size:7px;color:#456;letter-spacing:1px;text-transform:uppercase;margin-bottom:1px}
+    .hud-val{font-size:13px;font-weight:700;color:#00d4ff;letter-spacing:1px}
+    .hud-val.big{font-size:16px}
+    #hud-lives-wrap,#hud-pilot-wrap{display:flex;flex-direction:column;align-items:flex-start}
+    #hud-score-wrap{display:flex;flex-direction:column;align-items:flex-end}
+    #hud-level-wrap{display:flex;flex-direction:column;align-items:center}
+    .lives-icons{display:flex;gap:3px;align-items:center}
+    .life-icon{font-size:13px;line-height:1;transition:opacity .3s}
+
+    /* 게임오버 */
+    .gameover-title{
+      font-family:'Press Start 2P',monospace;font-size:20px;
+      color:#ff4466;text-align:center;
+      text-shadow:0 0 20px #ff446688;
+      animation:pulse 1s infinite;
+    }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+    .score-final{font-size:13px;color:#00d4ff;text-align:center}
+    .score-num{font-size:22px;font-weight:700;color:#fff;margin:4px 0}
+    .leaderboard{width:100%;max-width:300px}
+    .lb-title{
+      font-size:9px;color:#4a9eff;letter-spacing:2px;text-align:center;
+      margin-bottom:10px;border-bottom:1px solid #1a3a5c;padding-bottom:8px;
+    }
+    .lb-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;margin-bottom:5px}
+    .lb-row.r1{background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.35)}
+    .lb-row.r2{background:rgba(192,192,192,0.1);border:1px solid rgba(192,192,192,0.28)}
+    .lb-row.r3{background:rgba(205,127,50,0.1);border:1px solid rgba(205,127,50,0.28)}
+    .lb-medal{font-size:18px;min-width:26px;text-align:center}
+    .lb-info{flex:1;display:flex;flex-direction:column;gap:1px}
+    .lb-name{font-size:11px;color:#cde;font-weight:700;letter-spacing:.5px}
+    .lb-score{font-size:13px;color:#00d4ff;font-weight:700;letter-spacing:1px}
+    .lb-loading{text-align:center;color:#4a7a;font-size:9px;padding:12px}
+    .lb-me{border:1px solid #00d4ff44 !important;background:rgba(0,180,255,0.06) !important}
+    .lb-me .lb-name::after{content:' ★';color:#ffd700;font-size:9px}
+
+    .level-badge{
+      position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      font-family:'Press Start 2P',monospace;font-size:22px;
+      color:#ffd700;text-shadow:0 0 30px #ffd700;
+      z-index:8;pointer-events:none;
+      opacity:0;transition:opacity .5s;
+    }
+    .level-badge.show{opacity:1}
+    .joystick-area{
+      position:absolute;bottom:0;left:0;right:0;height:100px;z-index:6;
+      display:flex;justify-content:space-between;align-items:center;padding:0 20px;
+    }
+    .fire-btn{
+      width:64px;height:64px;
+      background:rgba(255,50,50,0.2);border:2px solid #ff4466;
+      border-radius:50%;color:#ff4466;font-size:10px;letter-spacing:1px;
+      cursor:pointer;font-family:'Orbitron',monospace;
+      display:flex;align-items:center;justify-content:center;
+      user-select:none;-webkit-user-select:none;
+    }
+    .fire-btn:active{background:rgba(255,50,50,0.5)}
+    .move-pad{display:flex;gap:8px;align-items:center}
+    .move-btn{
+      width:44px;height:44px;
+      background:rgba(0,100,200,0.2);border:1px solid #1a6aaa;
+      border-radius:8px;color:#4af;font-size:18px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      user-select:none;-webkit-user-select:none;
+    }
+    .move-btn:active{background:rgba(0,100,200,0.4)}
+    @media(max-width:440px){
+      #game-root{border-radius:0;border-left:none;border-right:none;max-height:100vh}
+    }
+  </style>
+</head>
+<body>
+<div id="game-root">
+
+  <!-- 로그인 화면 -->
+  <div id="screen-login" class="screen">
+    <!-- 로그인 화면 비행기 캔버스 -->
+    <canvas id="login-canvas" width="280" height="160"></canvas>
+
+    <div style="text-align:center;margin-top:-4px">
+      <div style="font-family:'Press Start 2P',monospace;font-size:8px;color:#4a9eff;letter-spacing:3px;margin-bottom:6px">KIMMYU</div>
+      <div style="font-family:'Press Start 2P',monospace;font-size:17px;color:#00d4ff;line-height:1.6;text-shadow:0 0 20px #00d4ff88">AIR COMBAT</div>
+      <div style="font-size:9px;color:#4a9eff;letter-spacing:2px;margin-top:4px">7 LEVELS · 3 LIVES</div>
+    </div>
+
+    <div class="input-wrap">
+      <label>PILOT ID</label>
+      <input id="pilot-input" type="text" maxlength="12" placeholder="Enter your name..." autocomplete="off">
+    </div>
+    <button class="btn" id="start-btn">▶ START MISSION</button>
+    <div id="login-error" style="color:#ff4466;font-size:9px;letter-spacing:1px;min-height:14px"></div>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="screen-game" class="screen hidden" style="padding:0;justify-content:flex-start;background:#000">
+    <div id="hud">
+      <div id="hud-row1">
+        <div id="hud-pilot-wrap">
+          <div class="hud-label">PILOT</div>
+          <div class="hud-val" id="hud-pilot" style="font-size:11px;color:#acd">—</div>
+        </div>
+        <div id="hud-level-wrap">
+          <div class="hud-label">LEVEL</div>
+          <div class="hud-val big" id="hud-level" style="color:#ffd700">1</div>
+        </div>
+        <div id="hud-score-wrap">
+          <div class="hud-label">SCORE</div>
+          <div class="hud-val big" id="hud-score">0</div>
+        </div>
+      </div>
+      <div id="hud-row2">
+        <div id="hud-lives-wrap">
+          <div class="hud-label">LIVES</div>
+          <div class="lives-icons" id="hud-lives">
+            <span class="life-icon">✈</span>
+            <span class="life-icon">✈</span>
+            <span class="life-icon">✈</span>
+          </div>
+        </div>
+        <div style="flex:1;margin:0 10px;padding-top:10px">
+          <div style="height:4px;background:#0a1a2a;border-radius:2px;overflow:hidden;border:1px solid #0a2a4a">
+            <div id="hud-progress" style="height:100%;background:linear-gradient(90deg,#004488,#00aaff);width:0%;transition:width .4s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:2px">
+            <span style="font-size:7px;color:#345">LV <span id="hud-prog-lv">1</span></span>
+            <span style="font-size:7px;color:#345">NEXT LV</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <canvas id="gc" width="420" height="560"></canvas>
+    <div id="level-badge" class="level-badge"></div>
+    <div class="joystick-area" id="touch-controls" style="display:none">
+      <div class="move-pad">
+        <div class="move-btn" id="btn-left">◀</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="move-btn" id="btn-up">▲</div>
+          <div class="move-btn" id="btn-down">▼</div>
+        </div>
+        <div class="move-btn" id="btn-right">▶</div>
+      </div>
+      <div class="fire-btn" id="btn-fire">FIRE</div>
+    </div>
+  </div>
+
+  <!-- 게임오버 화면 -->
+  <div id="screen-gameover" class="screen hidden">
+    <div class="gameover-title">GAME OVER</div>
+    <div class="score-final">
+      <div id="go-pilot" style="font-size:10px;color:#7ab;margin-bottom:2px">PILOT</div>
+      <div class="score-num" id="go-score">0</div>
+      <div style="font-size:9px;color:#456;letter-spacing:1px">FINAL SCORE</div>
+      <div id="go-level" style="margin-top:3px;font-size:9px;color:#ffd700"></div>
+    </div>
+    <div class="leaderboard">
+      <div class="lb-title">★ TOP PILOTS ★</div>
+      <div id="lb-list"><div class="lb-loading">LOADING...</div></div>
+    </div>
+    <div style="display:flex;gap:10px;width:100%;max-width:300px">
+      <button class="btn" id="retry-btn" style="flex:1">↺ RETRY</button>
+      <button class="btn" id="menu-btn" style="flex:1">⌂ MENU</button>
+    </div>
+  </div>
+
+</div>
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCI8UO0rPgYh9CA0onPOJeabVzCoFBimIswIMDwvEJ4oI5_hcdFM074zWERt6mACDP8Q/exec';
+let pilotName = '';
+const $ = id => document.getElementById(id);
+const isMobile = () => /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth < 500;
+const LEVEL_KILLS = [0, 5, 12, 20, 30, 40, 55];
+
+/* ── 사운드 엔진 ── */
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, type, dur, vol=0.15) {
+  try {
+    const ac=getAudio(), o=ac.createOscillator(), g=ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type=type; o.frequency.setValueAtTime(freq,ac.currentTime);
+    g.gain.setValueAtTime(vol,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+    o.start(); o.stop(ac.currentTime+dur);
+  } catch(e){}
+}
+function playNoise(dur, vol=0.12) {
+  try {
+    const ac=getAudio(), buf=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const s=ac.createBufferSource(), g=ac.createGain();
+    s.buffer=buf; s.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(vol,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+dur);
+    s.start(); s.stop(ac.currentTime+dur);
+  } catch(e){}
+}
+const SFX = {
+  shoot:   ()=>playTone(880,'square',0.08,0.10),
+  hit:     ()=>{playNoise(0.12,0.15);playTone(180,'sawtooth',0.12,0.12);},
+  explode: ()=>{playNoise(0.35,0.25);playTone(60,'sawtooth',0.3,0.15);},
+  damage:  ()=>{playNoise(0.2,0.2);playTone(120,'sawtooth',0.25,0.2);},
+  levelup: ()=>{playTone(523,'square',0.1,0.15);setTimeout(()=>playTone(659,'square',0.1,0.15),100);setTimeout(()=>playTone(784,'square',0.2,0.15),200);},
+  boss:    ()=>{playTone(80,'sawtooth',0.5,0.2);playTone(60,'square',0.5,0.1);},
+  gameover:()=>{playTone(440,'sawtooth',0.2,0.2);setTimeout(()=>playTone(349,'sawtooth',0.2,0.2),220);setTimeout(()=>playTone(294,'sawtooth',0.4,0.2),440);}
+};
+
+/* ══════════════════════════════
+   로그인 화면 비행기 애니메이션
+══════════════════════════════ */
+function initLoginCanvas() {
+  const lc = $('login-canvas');
+  const lx = lc.getContext('2d');
+  const LW = lc.width, LH = lc.height;
+  let lframe = 0;
+
+  /* 별 배경 */
+  const stars = Array.from({length:60}, ()=>({
+    x: Math.random()*LW, y: Math.random()*LH,
+    s: Math.random()*1.4+0.3, sp: Math.random()*0.8+0.3
+  }));
+
+  /* 비행기 위치 — 중앙 호버링 */
+  const cx = LW/2, cy = LH/2 + 10;
+
+  function drawLoginPlane(x, y, t) {
+    const s = 2.6; /* 시작 화면은 크게 */
+
+    /* 엔진 불꽃 */
+    const fh = 22 + Math.sin(t*0.07)*7;
+    const fg = lx.createLinearGradient(x, y+22*s, x, y+22*s+fh);
+    fg.addColorStop(0,'rgba(0,220,255,0.95)');
+    fg.addColorStop(0.5,'rgba(0,100,255,0.5)');
+    fg.addColorStop(1,'rgba(0,40,180,0)');
+    lx.fillStyle=fg;
+    lx.beginPath();
+    lx.moveTo(x-7*s, y+20*s);
+    lx.quadraticCurveTo(x, y+22*s+fh, x+7*s, y+20*s);
+    lx.closePath(); lx.fill();
+
+    /* 보조 불꽃 */
+    [-11,11].forEach(ox=>{
+      const fh2=12+Math.sin(t*0.07+ox)*4;
+      const fg2=lx.createLinearGradient(x+ox*s,y+18*s,x+ox*s,y+18*s+fh2);
+      fg2.addColorStop(0,'rgba(80,160,255,0.7)');
+      fg2.addColorStop(1,'rgba(0,80,200,0)');
+      lx.fillStyle=fg2;
+      lx.beginPath();
+      lx.moveTo(x+ox*s-3*s,y+18*s);
+      lx.quadraticCurveTo(x+ox*s,y+18*s+fh2,x+ox*s+3*s,y+18*s);
+      lx.closePath(); lx.fill();
+    });
+
+    lx.shadowColor='#00ccff'; lx.shadowBlur=22;
+
+    /* 주 날개 */
+    lx.fillStyle='#0d5fa3';
+    lx.beginPath();
+    lx.moveTo(x, y-9*s);
+    lx.lineTo(x-30*s, y+14*s); lx.lineTo(x-20*s, y+19*s);
+    lx.lineTo(x-9*s,  y+8*s);  lx.lineTo(x+9*s,  y+8*s);
+    lx.lineTo(x+20*s, y+19*s); lx.lineTo(x+30*s, y+14*s);
+    lx.closePath(); lx.fill();
+
+    /* 날개 하이라이트 */
+    lx.fillStyle='#1a80d4';
+    lx.beginPath();
+    lx.moveTo(x, y-7*s);
+    lx.lineTo(x-23*s, y+12*s); lx.lineTo(x-15*s, y+15*s);
+    lx.lineTo(x-7*s,  y+6*s);  lx.lineTo(x+7*s,  y+6*s);
+    lx.lineTo(x+15*s, y+15*s); lx.lineTo(x+23*s, y+12*s);
+    lx.closePath(); lx.fill();
+
+    /* 후방 소형 날개 */
+    lx.fillStyle='#0a4a80';
+    lx.beginPath();
+    lx.moveTo(x-8*s,y+14*s); lx.lineTo(x-16*s,y+21*s);
+    lx.lineTo(x-11*s,y+23*s); lx.lineTo(x-6*s,y+18*s);
+    lx.closePath(); lx.fill();
+    lx.beginPath();
+    lx.moveTo(x+8*s,y+14*s); lx.lineTo(x+16*s,y+21*s);
+    lx.lineTo(x+11*s,y+23*s); lx.lineTo(x+6*s,y+18*s);
+    lx.closePath(); lx.fill();
+
+    /* 동체 */
+    lx.fillStyle='#1266b8';
+    lx.beginPath();
+    lx.moveTo(x, y-26*s);
+    lx.bezierCurveTo(x-5*s,y-20*s, x-8*s,y, x-8*s,y+21*s);
+    lx.lineTo(x+8*s,y+21*s);
+    lx.bezierCurveTo(x+8*s,y, x+5*s,y-20*s, x,y-26*s);
+    lx.closePath(); lx.fill();
+
+    /* 동체 하이라이트 */
+    lx.fillStyle='#2a9ae8';
+    lx.beginPath();
+    lx.moveTo(x, y-24*s);
+    lx.bezierCurveTo(x-3*s,y-15*s, x-3.5*s,y+2*s, x-3.5*s,y+15*s);
+    lx.lineTo(x+3.5*s,y+15*s);
+    lx.bezierCurveTo(x+3.5*s,y+2*s, x+3*s,y-15*s, x,y-24*s);
+    lx.closePath(); lx.fill();
+
+    /* 캐노피 */
+    const cg=lx.createLinearGradient(x-5*s,y-20*s,x+5*s,y-8*s);
+    cg.addColorStop(0,'rgba(200,245,255,0.98)');
+    cg.addColorStop(0.35,'rgba(80,190,255,0.85)');
+    cg.addColorStop(1,'rgba(20,100,200,0.6)');
+    lx.fillStyle=cg;
+    lx.shadowBlur=8; lx.shadowColor='#aaeeff';
+    lx.beginPath();
+    lx.moveTo(x, y-24*s);
+    lx.bezierCurveTo(x-5*s,y-19*s, x-4.5*s,y-10*s, x-3.5*s,y-7*s);
+    lx.lineTo(x+3.5*s,y-7*s);
+    lx.bezierCurveTo(x+4.5*s,y-10*s, x+5*s,y-19*s, x,y-24*s);
+    lx.closePath(); lx.fill();
+
+    /* 기수 마커 */
+    lx.shadowBlur=10; lx.shadowColor='#ff4466';
+    lx.fillStyle='#ff2244';
+    lx.beginPath(); lx.arc(x, y-26*s, 2.5*s, 0, Math.PI*2); lx.fill();
+
+    /* 날개 끝 라이트 */
+    const blink = Math.sin(t*0.1)>0;
+    lx.shadowBlur=12; lx.shadowColor='#ff4400';
+    lx.fillStyle=blink?'#ff6600':'#993300';
+    lx.beginPath(); lx.arc(x-29*s, y+13*s, 3*s, 0, Math.PI*2); lx.fill();
+    lx.shadowColor='#00ff88';
+    lx.fillStyle=blink?'#00ff66':'#006633';
+    lx.beginPath(); lx.arc(x+29*s, y+13*s, 3*s, 0, Math.PI*2); lx.fill();
+
+    /* 미사일 */
+    lx.shadowBlur=6; lx.shadowColor='#ffaa00';
+    lx.fillStyle='#cc8800';
+    lx.fillRect(x-18*s-3, y+4*s, 6, 14);
+    lx.fillRect(x+18*s-3, y+4*s, 6, 14);
+    lx.fillStyle='#ffcc00';
+    lx.beginPath(); lx.moveTo(x-18*s, y+3*s); lx.lineTo(x-18*s-3, y+6*s); lx.lineTo(x-18*s+3, y+6*s); lx.closePath(); lx.fill();
+    lx.beginPath(); lx.moveTo(x+18*s, y+3*s); lx.lineTo(x+18*s-3, y+6*s); lx.lineTo(x+18*s+3, y+6*s); lx.closePath(); lx.fill();
+
+    lx.shadowBlur=0;
+  }
+
+  let loginAnimId;
+  function loginLoop() {
+    lframe++;
+    lx.clearRect(0, 0, LW, LH);
+
+    /* 별 */
+    stars.forEach(s=>{
+      s.y+=s.sp; if(s.y>LH) s.y=0;
+      lx.fillStyle=`rgba(180,220,255,${0.3+s.s*0.25})`;
+      lx.beginPath(); lx.arc(s.x,s.y,s.s,0,Math.PI*2); lx.fill();
+    });
+
+    /* 호버링 효과 */
+    const hoverY = cy + Math.sin(lframe * 0.03) * 5;
+    const tiltX  = Math.sin(lframe * 0.02) * 0.04;
+
+    lx.save();
+    lx.translate(cx, hoverY);
+    lx.rotate(tiltX);
+    lx.translate(-cx, -hoverY);
+    drawLoginPlane(cx, hoverY, lframe);
+    lx.restore();
+
+    loginAnimId = requestAnimationFrame(loginLoop);
+  }
+  loginLoop();
+
+  /* 게임 시작 시 로그인 애니메이션 정지 */
+  window._stopLoginAnim = () => cancelAnimationFrame(loginAnimId);
+}
+
+/* ══════════════════════════════
+   화면 전환
+══════════════════════════════ */
+function showScreen(id) {
+  ['screen-login','screen-game','screen-gameover'].forEach(s=>$(s).classList.add('hidden'));
+  $(id).classList.remove('hidden');
+}
+
+$('start-btn').onclick = () => {
+  getAudio();
+  const v = $('pilot-input').value.trim();
+  if (!v) { $('login-error').textContent = 'ENTER PILOT ID'; return; }
+  pilotName = v;
+  if (window._stopLoginAnim) window._stopLoginAnim();
+  startGame();
+};
+$('pilot-input').addEventListener('keydown', e => { if (e.key==='Enter') $('start-btn').click(); });
+$('retry-btn').onclick = startGame;
+$('menu-btn').onclick = () => {
+  showScreen('screen-login');
+  $('pilot-input').value = pilotName || '';
+  initLoginCanvas();
+};
+
+function startGame() {
+  showScreen('screen-game');
+  $('hud-pilot').textContent = pilotName.toUpperCase().substring(0,10);
+  if (isMobile()) $('touch-controls').style.display = 'flex';
+  runGame();
+}
+
+/* ══════════════════════════════
+   게임 메인 루프
+══════════════════════════════ */
+function runGame() {
+  const canvas = $('gc');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CANVAS_H = isMobile() ? H-100 : H;
+
+  let S = {
+    px:W/2, py:CANVAS_H-60, pw:18, ph:18,  /* 히트박스 절반 크기 */
+    lives:3, score:0, level:1, frame:0,
+    bullets:[], enemies:[], stars:[], bombs:[],
+    running:true, levelUp:false,
+    keys:{left:false,right:false,up:false,down:false,fire:false},
+    fireTimer:0, enemyCount:0, bossActive:false, boss:null
+  };
+
+  for (let i=0;i<80;i++)
+    S.stars.push({x:Math.random()*W, y:Math.random()*H, s:Math.random()*1.5+0.3, sp:Math.random()*1.5+0.5});
+
+  updateHUD(S);
+
+  function cfg(lv) {
+    return {
+      enemySpeed: 0.8+lv*0.35,
+      spawnRate: Math.max(40-lv*4,12),
+      enemyBulletSpeed: 1.5+lv*0.4,
+      enemyShoot: lv>=3,
+      bossAt: lv>=5,
+      bossHealth: 30+lv*10,
+      scorePerKill: 10*lv,
+      bgColor:`hsl(${220+lv*5},80%,${3+lv}%)`
+    };
+  }
+
+  function spawnEnemy(c) {
+    const types=['basic','fast','tank','zigzag'];
+    const avail = S.level<=2?['basic']:S.level<=4?['basic','fast']:types;
+    const t = avail[Math.floor(Math.random()*avail.length)];
+    S.enemies.push({
+      x:Math.random()*(W-40)+20, y:-30,
+      w:t==='tank'?44:32, h:t==='tank'?36:28,
+      type:t,
+      hp:t==='tank'?4:t==='fast'?1:2,
+      speed:t==='fast'?c.enemySpeed*1.8:t==='tank'?c.enemySpeed*0.6:c.enemySpeed,
+      dir:1, angle:0, fireTimer:Math.floor(Math.random()*80),
+      color:t==='fast'?'#ff8800':t==='tank'?'#aa44ff':'#ff3355',
+      glow:t==='tank'?'#aa44ff':t==='fast'?'#ff8800':'#ff3355'
+    });
+  }
+
+  function spawnBoss(c) {
+    if (S.bossActive) return;
+    S.bossActive = true;
+    S.boss = {x:W/2, y:-60, w:80, h:60, hp:c.bossHealth, maxHp:c.bossHealth, speed:1, dir:1, fireTimer:0};
+    S.enemies = [];
+    SFX.boss();
+  }
+
+  let animId;
+  function loop() {
+    if (!S.running) { cancelAnimationFrame(animId); return; }
+    S.frame++;
+    const c = cfg(S.level);
+    ctx.fillStyle = c.bgColor;
+    ctx.fillRect(0,0,W,H);
+
+    S.stars.forEach(s=>{
+      s.y+=s.sp; if(s.y>H) s.y=0;
+      ctx.fillStyle=`rgba(180,220,255,${0.3+s.s*0.3})`;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.s,0,Math.PI*2); ctx.fill();
+    });
+
+    if (!S.levelUp) {
+      if (S.fireTimer>0) S.fireTimer--;
+      if (S.keys.fire && S.fireTimer<=0) {
+        S.bullets.push({x:S.px, y:S.py-S.ph/2, w:4, h:12, speed:9, type:'player'});
+        S.fireTimer=14;
+        SFX.shoot();
+      }
+      const spd=3.5+S.level*0.2;
+      if (S.keys.left)  S.px=Math.max(S.pw/2, S.px-spd);
+      if (S.keys.right) S.px=Math.min(W-S.pw/2, S.px+spd);
+      if (S.keys.up)    S.py=Math.max(S.ph/2+44, S.py-spd);
+      if (S.keys.down)  S.py=Math.min(CANVAS_H-S.ph/2, S.py+spd);
+    }
+
+    if (!S.bossActive && S.frame%c.spawnRate===0) spawnEnemy(c);
+    if (c.bossAt && S.score>=S.level*200 && !S.bossActive) spawnBoss(c);
+
+    /* 총알 이동 + 적 총알→플레이어 충돌 */
+    S.bullets = S.bullets.filter(b => {
+      b.y += b.type==='player' ? -b.speed : b.speed;
+      if (b.type==='enemy' && !S.levelUp) {
+        if (Math.abs(b.x-S.px)<(S.pw/2+b.w/2) && Math.abs(b.y-S.py)<(S.ph/2+b.h/2)) {
+          takeDamage(); return false;
+        }
+      }
+      return b.y>-20 && b.y<H+20;
+    });
+
+    /* 적 이동 + 충돌 */
+    S.enemies = S.enemies.filter(e => {
+      if (e.type==='zigzag') {
+        e.angle+=0.04; e.x+=Math.sin(e.angle)*2.5;
+        e.x=Math.max(e.w/2, Math.min(W-e.w/2, e.x));
+      } else {
+        /* 플레이어 X 추적 (구석 버그 수정) */
+        const dx=S.px-e.x;
+        e.x+=Math.sign(dx)*Math.min(Math.abs(dx)*0.008+0.4, 1.2);
+        e.x=Math.max(e.w/2, Math.min(W-e.w/2, e.x));
+      }
+      e.y+=e.speed;
+
+      if (c.enemyShoot) {
+        e.fireTimer--;
+        if (e.fireTimer<=0) {
+          S.bullets.push({x:e.x, y:e.y+e.h/2, w:3, h:8, speed:c.enemyBulletSpeed, type:'enemy', color:'#ff4'});
+          e.fireTimer=60+Math.floor(Math.random()*60);
+        }
+      }
+      S.bullets = S.bullets.filter(b=>{
+        if (b.type==='player' && Math.abs(b.x-e.x)<(e.w/2+4) && Math.abs(b.y-e.y)<(e.h/2+6)) {
+          e.hp--; SFX.hit(); return false;
+        }
+        return true;
+      });
+      if (e.hp<=0) {
+        S.score+=c.scorePerKill; S.enemyCount++;
+        explode(e.x,e.y); SFX.explode(); updateHUD(S); checkLevelUp(); return false;
+      }
+      if (e.y>CANVAS_H+40) return false;
+      if (!S.levelUp && Math.abs(e.x-S.px)<(e.w/2+S.pw/2-4) && Math.abs(e.y-S.py)<(e.h/2+S.ph/2-4)) {
+        takeDamage(); return false;
+      }
+      drawEnemy(e); return true;
+    });
+
+    /* 보스 */
+    if (S.boss) {
+      const b=S.boss;
+      b.x+=b.speed*b.dir;
+      if (b.x<50||b.x>W-50) b.dir*=-1;
+      if (b.y<80) b.y+=1.5;
+      b.fireTimer--;
+      if (b.fireTimer<=0) {
+        [-0.3,0,0.3].forEach(a=>S.bullets.push({x:b.x+Math.sin(a)*20, y:b.y+b.h/2, w:5, h:10, speed:2.5+S.level*0.2, type:'enemy', color:'#f80'}));
+        b.fireTimer=Math.max(15,25-S.level*2);
+      }
+      S.bullets=S.bullets.filter(bl=>{
+        if (bl.type==='player' && Math.abs(bl.x-b.x)<(b.w/2+4) && Math.abs(bl.y-b.y)<(b.h/2+6)) { b.hp--; SFX.hit(); return false; }
+        return true;
+      });
+      if (b.hp<=0) {
+        explode(b.x,b.y); explode(b.x-20,b.y-10); explode(b.x+20,b.y+10);
+        SFX.explode();
+        S.score+=c.scorePerKill*15; S.bossActive=false; S.boss=null;
+        updateHUD(S); checkLevelUp();
+      } else {
+        if (!S.levelUp && Math.abs(b.x-S.px)<(b.w/2+S.pw/2-6) && Math.abs(b.y-S.py)<(b.h/2+S.ph/2-6)) takeDamage();
+        drawBoss(b);
+      }
+    }
+
+    /* 총알 그리기 */
+    S.bullets.forEach(b=>{
+      ctx.fillStyle=b.type==='player'?'#00eeff':(b.color||'#ffcc00');
+      ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=6;
+      ctx.fillRect(b.x-b.w/2, b.y, b.w, b.h);
+      ctx.shadowBlur=0;
+    });
+
+    /* 폭발 */
+    S.bombs=S.bombs.filter(p=>{
+      p.r+=3; p.a-=0.06;
+      ctx.strokeStyle=`rgba(${p.c},${p.a})`; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.stroke();
+      return p.a>0;
+    });
+
+    drawPlayer(S.px, S.py, S.levelUp, S.frame);
+    animId=requestAnimationFrame(loop);
+  }
+
+  /* ── 플레이어 비행기 (게임용 — 절반 크기 s=0.85) ── */
+  function drawPlayer(x, y, dim, frame) {
+    ctx.save();
+    if (dim) ctx.globalAlpha=0.4;
+    const s=0.85;
+
+    /* 엔진 불꽃 */
+    const fh=18+Math.sin(frame*0.4)*6;
+    const fg=ctx.createLinearGradient(x,y+22*s,x,y+22*s+fh);
+    fg.addColorStop(0,'rgba(0,200,255,0.9)');
+    fg.addColorStop(0.4,'rgba(0,120,255,0.6)');
+    fg.addColorStop(1,'rgba(0,60,200,0)');
+    ctx.fillStyle=fg;
+    ctx.beginPath();
+    ctx.moveTo(x-6*s,y+20*s);
+    ctx.quadraticCurveTo(x,y+22*s+fh,x+6*s,y+20*s);
+    ctx.closePath(); ctx.fill();
+
+    [-10,10].forEach(ox=>{
+      const fl2=10+Math.sin(frame*0.4+ox)*4;
+      const fg2=ctx.createLinearGradient(x+ox*s,y+18*s,x+ox*s,y+18*s+fl2);
+      fg2.addColorStop(0,'rgba(80,160,255,0.7)');
+      fg2.addColorStop(1,'rgba(0,80,200,0)');
+      ctx.fillStyle=fg2;
+      ctx.beginPath();
+      ctx.moveTo(x+ox*s-3*s,y+18*s);
+      ctx.quadraticCurveTo(x+ox*s,y+18*s+fl2,x+ox*s+3*s,y+18*s);
+      ctx.closePath(); ctx.fill();
+    });
+
+    ctx.shadowColor='#00ccff'; ctx.shadowBlur=14;
+
+    /* 주 날개 */
+    ctx.fillStyle='#0d5fa3';
+    ctx.beginPath();
+    ctx.moveTo(x,y-8*s);
+    ctx.lineTo(x-26*s,y+14*s); ctx.lineTo(x-18*s,y+18*s);
+    ctx.lineTo(x-8*s, y+8*s);  ctx.lineTo(x+8*s, y+8*s);
+    ctx.lineTo(x+18*s,y+18*s); ctx.lineTo(x+26*s,y+14*s);
+    ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle='#1a80d4';
+    ctx.beginPath();
+    ctx.moveTo(x,y-6*s);
+    ctx.lineTo(x-20*s,y+12*s); ctx.lineTo(x-14*s,y+14*s);
+    ctx.lineTo(x-6*s, y+6*s);  ctx.lineTo(x+6*s, y+6*s);
+    ctx.lineTo(x+14*s,y+14*s); ctx.lineTo(x+20*s,y+12*s);
+    ctx.closePath(); ctx.fill();
+
+    /* 후방 소형 날개 */
+    ctx.fillStyle='#0a4a80';
+    ctx.beginPath();
+    ctx.moveTo(x-7*s,y+14*s); ctx.lineTo(x-14*s,y+20*s);
+    ctx.lineTo(x-10*s,y+22*s); ctx.lineTo(x-6*s,y+18*s);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x+7*s,y+14*s); ctx.lineTo(x+14*s,y+20*s);
+    ctx.lineTo(x+10*s,y+22*s); ctx.lineTo(x+6*s,y+18*s);
+    ctx.closePath(); ctx.fill();
+
+    /* 동체 */
+    ctx.fillStyle='#1266b8';
+    ctx.beginPath();
+    ctx.moveTo(x,y-24*s);
+    ctx.bezierCurveTo(x-5*s,y-18*s, x-7*s,y, x-7*s,y+20*s);
+    ctx.lineTo(x+7*s,y+20*s);
+    ctx.bezierCurveTo(x+7*s,y, x+5*s,y-18*s, x,y-24*s);
+    ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle='#2a9ae8';
+    ctx.beginPath();
+    ctx.moveTo(x,y-22*s);
+    ctx.bezierCurveTo(x-2.5*s,y-14*s, x-3*s,y+2*s, x-3*s,y+14*s);
+    ctx.lineTo(x+3*s,y+14*s);
+    ctx.bezierCurveTo(x+3*s,y+2*s, x+2.5*s,y-14*s, x,y-22*s);
+    ctx.closePath(); ctx.fill();
+
+    /* 캐노피 */
+    const cg=ctx.createLinearGradient(x-4*s,y-18*s,x+4*s,y-8*s);
+    cg.addColorStop(0,'rgba(180,240,255,0.95)');
+    cg.addColorStop(0.4,'rgba(80,180,255,0.8)');
+    cg.addColorStop(1,'rgba(20,100,200,0.6)');
+    ctx.fillStyle=cg;
+    ctx.shadowBlur=6; ctx.shadowColor='#aaeeff';
+    ctx.beginPath();
+    ctx.moveTo(x,y-22*s);
+    ctx.bezierCurveTo(x-4*s,y-18*s, x-4*s,y-10*s, x-3*s,y-7*s);
+    ctx.lineTo(x+3*s,y-7*s);
+    ctx.bezierCurveTo(x+4*s,y-10*s, x+4*s,y-18*s, x,y-22*s);
+    ctx.closePath(); ctx.fill();
+
+    /* 기수 마커 */
+    ctx.shadowBlur=8; ctx.shadowColor='#ff4466';
+    ctx.fillStyle='#ff2244';
+    ctx.beginPath(); ctx.arc(x,y-24*s,1.8*s,0,Math.PI*2); ctx.fill();
+
+    /* 날개 끝 라이트 */
+    ctx.shadowBlur=8; ctx.shadowColor='#ff4400';
+    ctx.fillStyle='#ff6600';
+    ctx.beginPath(); ctx.arc(x-25*s,y+13*s,2*s,0,Math.PI*2); ctx.fill();
+    ctx.shadowColor='#00ff88'; ctx.fillStyle='#00ff66';
+    ctx.beginPath(); ctx.arc(x+25*s,y+13*s,2*s,0,Math.PI*2); ctx.fill();
+
+    ctx.shadowBlur=0; ctx.restore();
+  }
+
+  function drawEnemy(e) {
+    ctx.save(); ctx.shadowColor=e.glow; ctx.shadowBlur=10; ctx.fillStyle=e.color;
+    if (e.type==='tank') {
+      ctx.fillRect(e.x-e.w/2,e.y-e.h/2,e.w,e.h);
+      ctx.fillStyle='#cc66ff'; ctx.fillRect(e.x-8,e.y-e.h/2-6,16,8);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(e.x,e.y+e.h/2); ctx.lineTo(e.x-e.w/2,e.y-e.h/2+6);
+      ctx.lineTo(e.x-8,e.y-e.h/2); ctx.lineTo(e.x,e.y-e.h/2+8);
+      ctx.lineTo(e.x+8,e.y-e.h/2); ctx.lineTo(e.x+e.w/2,e.y-e.h/2+6);
+      ctx.closePath(); ctx.fill();
+    }
+    if (e.hp>1) {
+      ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(e.x-14,e.y+e.h/2+2,28,4);
+      ctx.fillStyle='#0f0'; ctx.fillRect(e.x-14,e.y+e.h/2+2,28*(e.hp/(e.type==='tank'?4:2)),4);
+    }
+    ctx.shadowBlur=0; ctx.restore();
+  }
+
+  function drawBoss(b) {
+    ctx.save(); ctx.shadowColor='#ff6600'; ctx.shadowBlur=20;
+    ctx.fillStyle='#cc2200'; ctx.fillRect(b.x-b.w/2,b.y-b.h/2,b.w,b.h);
+    ctx.fillStyle='#ff4400';
+    ctx.beginPath(); ctx.moveTo(b.x-b.w/2-10,b.y); ctx.lineTo(b.x-b.w/2,b.y-10); ctx.lineTo(b.x-b.w/2,b.y+10); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(b.x+b.w/2+10,b.y); ctx.lineTo(b.x+b.w/2,b.y-10); ctx.lineTo(b.x+b.w/2,b.y+10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#ff8800'; ctx.fillRect(b.x-12,b.y-b.h/2-12,24,14);
+    const pct=b.hp/b.maxHp;
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(b.x-b.w/2,b.y+b.h/2+4,b.w,8);
+    ctx.fillStyle=pct>0.5?'#0f0':pct>0.25?'#ff0':'#f00';
+    ctx.fillRect(b.x-b.w/2,b.y+b.h/2+4,b.w*pct,8);
+    ctx.fillStyle='#fff'; ctx.font='bold 11px Orbitron,monospace'; ctx.textAlign='center';
+    ctx.fillText('BOSS',b.x,b.y+2);
+    ctx.shadowBlur=0; ctx.restore();
+  }
+
+  function explode(x,y) {
+    for (let i=0;i<3;i++)
+      S.bombs.push({x:x+(Math.random()-.5)*20, y:y+(Math.random()-.5)*20, r:4, a:1, c:Math.random()>.5?'255,100,0':'255,220,0'});
+  }
+
+  function takeDamage() {
+    if (S.levelUp) return;
+    S.lives--; updateHUD(S); SFX.damage();
+    if (S.lives<=0) { S.running=false; cancelAnimationFrame(animId); SFX.gameover(); endGame(); }
+    else { S.px=W/2; S.py=CANVAS_H-60; }
+  }
+
+  function checkLevelUp() {
+    if (S.level>=7) return;
+    if (S.enemyCount>=LEVEL_KILLS[S.level] && !S.bossActive) {
+      S.level++; S.enemyCount=0;
+      showLevelBadge('LEVEL '+S.level); updateHUD(S);
+    }
+  }
+
+  function showLevelBadge(txt) {
+    S.levelUp=true; SFX.levelup();
+    const b=$('level-badge'); b.textContent=txt; b.classList.add('show');
+    setTimeout(()=>{ b.classList.remove('show'); S.levelUp=false; },1800);
+  }
+
+  function updateHUD(s) {
+    $('hud-score').textContent=s.score.toLocaleString();
+    $('hud-level').textContent=s.level;
+    $('hud-prog-lv').textContent=s.level;
+    const icons=$('hud-lives').querySelectorAll('.life-icon');
+    icons.forEach((ic,i)=>{
+      ic.style.opacity=i<s.lives?'1':'0.12';
+      ic.style.color=i<s.lives?'#ff4466':'#333';
+      ic.style.textShadow=i<s.lives?'0 0 8px #ff4466':'none';
+    });
+    if (s.level<7) {
+      $('hud-progress').style.width=Math.min(100,Math.round(s.enemyCount/LEVEL_KILLS[s.level]*100))+'%';
+    } else {
+      $('hud-progress').style.width='100%';
+    }
+  }
+
+  function endGame() {
+    showScreen('screen-gameover');
+    $('go-pilot').textContent='PILOT: '+pilotName.toUpperCase();
+    $('go-score').textContent=S.score.toLocaleString();
+    $('go-level').textContent='REACHED LEVEL '+S.level;
+    saveScore(pilotName, S.score, S.level);
+    loadLeaderboard(pilotName, S.score);
+  }
+
+  /* 키보드 */
+  function onKD(e) {
+    if ($('screen-game').classList.contains('hidden')) return;
+    if (e.key==='ArrowLeft')  S.keys.left=true;
+    if (e.key==='ArrowRight') S.keys.right=true;
+    if (e.key==='ArrowUp')    S.keys.up=true;
+    if (e.key==='ArrowDown')  S.keys.down=true;
+    if (e.key===' '||e.key==='z'||e.key==='Z') S.keys.fire=true;
+    e.preventDefault();
+  }
+  function onKU(e) {
+    if (e.key==='ArrowLeft')  S.keys.left=false;
+    if (e.key==='ArrowRight') S.keys.right=false;
+    if (e.key==='ArrowUp')    S.keys.up=false;
+    if (e.key==='ArrowDown')  S.keys.down=false;
+    if (e.key===' '||e.key==='z'||e.key==='Z') S.keys.fire=false;
+  }
+  document.addEventListener('keydown',onKD);
+  document.addEventListener('keyup',onKU);
+
+  function tbtn(id,key) {
+    const el=$(id); if(!el) return;
+    el.addEventListener('touchstart',e=>{e.preventDefault();S.keys[key]=true;},{passive:false});
+    el.addEventListener('touchend',  e=>{e.preventDefault();S.keys[key]=false;},{passive:false});
+    el.addEventListener('mousedown',()=>S.keys[key]=true);
+    el.addEventListener('mouseup',  ()=>S.keys[key]=false);
+  }
+  tbtn('btn-left','left'); tbtn('btn-right','right');
+  tbtn('btn-up','up');     tbtn('btn-down','down');
+  tbtn('btn-fire','fire');
+
+  let tx=0,ty=0;
+  canvas.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    const t=e.touches[0]; tx=t.clientX; ty=t.clientY; S.keys.fire=true;
+  },{passive:false});
+  canvas.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    const t=e.touches[0];
+    const rect=canvas.getBoundingClientRect();
+    const sc=W/rect.width;
+    S.px=Math.max(S.pw/2,Math.min(W-S.pw/2,S.px+(t.clientX-tx)*sc));
+    S.py=Math.max(S.ph/2+44,Math.min(CANVAS_H-S.ph/2,S.py+(t.clientY-ty)*sc));
+    tx=t.clientX; ty=t.clientY;
+  },{passive:false});
+  canvas.addEventListener('touchend',e=>{e.preventDefault();S.keys.fire=false;},{passive:false});
+
+  loop();
+}
+
+/* ══════════════════════════════
+   Google Apps Script 연동
+   — saveScore: no-cors POST (점수 저장)
+   — loadLeaderboard: 직접 GET → 실패 시 JSONP 방식 재시도
+══════════════════════════════ */
+async function saveScore(name, score, level) {
+  try {
+    await fetch(GAS_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'save', name, score, level, date:new Date().toISOString()})
+    });
+  } catch(e) { console.warn('Save failed',e); }
+}
+
+function loadLeaderboard(myName, myScore) {
+  const list=$('lb-list');
+  list.innerHTML='<div class="lb-loading">LOADING...</div>';
+
+  /* JSONP 방식으로 순위 가져오기 (CORS 우회) */
+  const cbName='_gasCallback_'+Date.now();
+  const script=document.createElement('script');
+  let done=false;
+
+  const timer=setTimeout(()=>{
+    if(done) return;
+    done=true;
+    cleanup();
+    /* 타임아웃 시 현재 플레이어 점수만 표시 */
+    renderLB([{name:myName,score:myScore}], myName, myScore);
+  }, 5000);
+
+  window[cbName]=(data)=>{
+    if(done) return;
+    done=true;
+    cleanup();
+    renderLB(data.top3||[], myName, myScore);
+  };
+
+  function cleanup(){
+    clearTimeout(timer);
+    if(script.parentNode) script.parentNode.removeChild(script);
+    delete window[cbName];
+  }
+
+  script.src=GAS_URL+'?action=top3&callback='+cbName;
+  script.onerror=()=>{
+    if(done) return;
+    done=true;
+    cleanup();
+    /* 에러 시에도 현재 점수 표시 */
+    renderLB([{name:myName,score:myScore}], myName, myScore);
+  };
+  document.head.appendChild(script);
+}
+
+function renderLB(top, myName, myScore) {
+  const medals=['🥇','🥈','🥉'];
+  const cls=['r1','r2','r3'];
+
+  /* 현재 플레이어 점수를 top 배열에 합산 후 재정렬 */
+  if (myName && myScore!==undefined) {
+    const already=top.some(r=>(r.name||'').toLowerCase()===myName.toLowerCase()&&Number(r.score)===myScore);
+    if (!already) top.push({name:myName, score:myScore});
+    top.sort((a,b)=>Number(b.score)-Number(a.score));
+    top=top.slice(0,3);
+  }
+
+  if (!top||!top.length) {
+    $('lb-list').innerHTML='<div class="lb-loading">아직 기록이 없습니다</div>';
+    return;
+  }
+
+  $('lb-list').innerHTML=top.map((r,i)=>{
+    const isMe=myName&&(r.name||'').toLowerCase()===myName.toLowerCase();
+    return`<div class="lb-row ${cls[i]||''} ${isMe?'lb-me':''}">
+      <span class="lb-medal">${medals[i]||'#'+(i+1)}</span>
+      <div class="lb-info">
+        <div class="lb-name">${(r.name||'---').substring(0,12)}</div>
+        <div class="lb-score">${Number(r.score||0).toLocaleString()}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* 페이지 로드 시 로그인 캔버스 시작 */
+initLoginCanvas();
+</script>
+</body>
+</html>
